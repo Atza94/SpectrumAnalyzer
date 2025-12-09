@@ -43,7 +43,7 @@ jobs:
       - name: BuildApp 
         run: |
           source .venv/bin/activate
-          pyinstaller --windowed --onefile --name "Spectrum" main.py
+          pyinstaller --windowed --onefile --name "Spectrum" --icon=icon.png --add-data "attached_assets:attached_assets" main.py
           
       - name: UploadArtifact
         uses: actions/upload-artifact@v4 
