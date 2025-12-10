@@ -1,58 +1,68 @@
-# This is a basic workflow to help you get started with Actions
-
+# Build a Windows executable using PyInstaller on windows-latest runner
 name: BuildWinAPP
 
-# Controls when the workflow will run
 on:
-  # Triggers the workflow on push or pull request events but only for the "main" branch
   push:
     branches: [ "main" ]
-  
-  # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
-# A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
-  # This workflow contains a single job called "build"
   build:
-    # The type of runner that the job will run on
     runs-on: windows-latest
 
-    # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - name: Check-out Repo  
+      - name: Check-out Repo
         uses: actions/checkout@v4
 
-      # Runs a single command using the runners shell
       - name: Setup Python
         uses: actions/setup-python@v5
-        with: 
+        with:
           python-version: "3.11"
-          
 
-      # Runs a set of commands using the runners shell
-      - name: Install Dependencies 
+      - name: Create virtualenv and install dependencies
+        shell: powershell
         run: |
           python -m venv .venv
-          source .venv\bin\activate
-          pip install -U pip
-          pip install -r requirements.txt
-          pip install pyinstaller
+          .\.venv\Scripts\python.exe -m pip install --upgrade pip
+          if (Test-Path .\requirements.txt) {
+            .\.venv\Scripts\python.exe -m pip install -r requirements.txt
+          } else {
+            Write-Host "No requirements.txt found; continuing"
+          }
+          .\.venv\Scripts\python.exe -m pip install pyinstaller pillow
 
-      - name: BuildApp 
+      - name: Convert icon.png to icon.ico (if icon.png exists)
+        shell: powershell
         run: |
-          source .venv\bin\activate
-          pyinstaller --windowed --onefile --name "Spectrum" --icon=icon.png --add-data "attached_assets;attached_assets" main.py
-          
-      - name: UploadArtifact
-        uses: actions/upload-artifact@v4 
+          if (Test-Path .\icon.png) {
+            Write-Host "Converting icon.png -> icon.ico using Pillow"
+            @'
+from PIL import Image
+Image.open("icon.png").save("icon.ico")
+'@ | Out-File -Encoding utf8 convert_icon.py
+            .\.venv\Scripts\python.exe convert_icon.py
+            Remove-Item -Path convert_icon.py
+          } else {
+            Write-Host "No icon.png found; skipping conversion"
+          }
+
+      - name: BuildApp with PyInstaller (Windows)
+        shell: powershell
+        run: |
+          $iconArg = ""
+          if (Test-Path .\icon.ico) {
+            $iconArg = "--icon=icon.ico"
+          } elseif (Test-Path .\icon.png) {
+            # PyInstaller on Windows prefers .ico, but can accept .png in some cases
+            $iconArg = "--icon=icon.png"
+          } else {
+            $iconArg = ""
+          }
+          Write-Host "Running PyInstaller with icon argument: $iconArg"
+          .\.venv\Scripts\pyinstaller.exe --windowed --onefile --name "Spectrum" $iconArg --add-data "attached_assets;attached_assets" main.py
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
         with:
-          name: Spectrum-macos
-          path: dist/Spectrum.app
-        
-      
-          
-
-
-  
+          name: Spectrum-windows
+          path: dist/*.exe
