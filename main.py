@@ -1234,10 +1234,47 @@ class DualSAViewer(ctk.CTk):
         self.destroy()
     
     def _get_rm(self):
-        if self.rm is None:
-            self.rm = pyvisa.ResourceManager("@py")
-        return self.rm
+        """
+        Create and return a pyvisa ResourceManager.
     
+        Try the default ResourceManager() first (this will use NI-VISA on Windows
+        if it's installed). If that fails, fall back to the pure-Python backend
+        provided by pyvisa-py via ResourceManager('@py').
+    
+        If neither backend can be created, raise a RuntimeError so the calling
+        code can handle it (and so the error is obvious during startup).
+        """
+        if self.rm is not None:
+            return self.rm
+    
+        # Try the default (system) VISA backend first
+        try:
+            self.rm = pyvisa.ResourceManager()
+            # Try a lightweight check (list_resources may succeed or raise)
+            try:
+                _ = self.rm.list_resources()
+            except Exception:
+                # listing may fail depending on backend configuration; ignore here
+                pass
+            print("Using default VISA ResourceManager()")
+            return self.rm
+        except Exception as e_default:
+            print(f"default ResourceManager() failed: {e_default}. Trying pyvisa-py ('@py')...")
+    
+        # Fallback to pyvisa-py
+        try:
+            self.rm = pyvisa.ResourceManager("@py")
+            try:
+                _ = self.rm.list_resources()
+            except Exception:
+                pass
+            print("Using pyvisa-py ResourceManager('@py')")
+            return self.rm
+        except Exception as e_py:
+            print(f"pyvisa-py ResourceManager('@py') failed: {e_py}")
+            self.rm = None
+            raise RuntimeError("No usable VISA backend found. Install NI-VISA or pyvisa-py and try again.") from e_py
+        
     def _check_connection1(self):
         if self.inst1 is None:
             return False
