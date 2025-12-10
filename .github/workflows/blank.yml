@@ -1,6 +1,6 @@
 # This is a basic workflow to help you get started with Actions
 
-name: BuildWinAPP
+name: MacosApp
 
 # Controls when the workflow will run
 on:
@@ -35,15 +35,15 @@ jobs:
       - name: Install Dependencies 
         run: |
           python -m venv .venv
-          source .venv\bin\activate
+          source .venv/bin/activate
           pip install -U pip
           pip install -r requirements.txt
           pip install pyinstaller
 
       - name: BuildApp 
         run: |
-          source .venv\bin\activate
-          pyinstaller --windowed --onefile --name "Spectrum" --icon=icon.png --add-data "attached_assets;attached_assets" main.py
+          source .venv/bin/activate
+          pyinstaller --windowed --onefile --name "Spectrum" --icon=icon.png --add-data "attached_assets:attached_assets" main.py
           
       - name: UploadArtifact
         uses: actions/upload-artifact@v4 
