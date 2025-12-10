@@ -11,23 +11,26 @@ on:
         description: 'Name for the built executable'
         required: false
         default: 'Spectrum'
+        type: string
       convert_icon:
         description: 'Convert icon.png to icon.ico before building'
         required: false
-        default: true
+        default: 'true'     # use string to avoid YAML/Action coercion pitfalls
         type: boolean
       python_version:
         description: 'Python version to use'
         required: false
         default: '3.11'
+        type: string
 
 jobs:
   build:
     runs-on: windows-latest
     env:
-      PYTHON_VERSION: ${{ github.event.inputs.python_version }}
-      CONVERT_ICON: ${{ github.event.inputs.convert_icon }}
-      RELEASE_NAME: ${{ github.event.inputs.release_name }}
+      # use a safe expression with fallback so the job works for push runs too
+      PYTHON_VERSION: ${{ github.event.inputs.python_version || '3.11' }}
+      CONVERT_ICON: ${{ github.event.inputs.convert_icon || 'true' }}
+      RELEASE_NAME: ${{ github.event.inputs.release_name || 'Spectrum' }}
 
     steps:
       - name: Check-out Repo
