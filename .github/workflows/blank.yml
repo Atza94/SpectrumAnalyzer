@@ -1,14 +1,33 @@
 # Build a Windows executable using PyInstaller on windows-latest runner
+# Adds a manual workflow_dispatch trigger with inputs so you can run this from Actions -> Run workflow
 name: BuildWinAPP
 
 on:
   push:
     branches: [ "main" ]
   workflow_dispatch:
+    inputs:
+      release_name:
+        description: 'Name for the built executable'
+        required: false
+        default: 'Spectrum'
+      convert_icon:
+        description: 'Convert icon.png to icon.ico before building'
+        required: false
+        default: true
+        type: boolean
+      python_version:
+        description: 'Python version to use'
+        required: false
+        default: '3.11'
 
 jobs:
   build:
     runs-on: windows-latest
+    env:
+      PYTHON_VERSION: ${{ github.event.inputs.python_version }}
+      CONVERT_ICON: ${{ github.event.inputs.convert_icon }}
+      RELEASE_NAME: ${{ github.event.inputs.release_name }}
 
     steps:
       - name: Check-out Repo
@@ -17,7 +36,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Create virtualenv and install dependencies
         shell: powershell
@@ -31,10 +50,10 @@ jobs:
           }
           .\.venv\Scripts\python.exe -m pip install pyinstaller pillow
 
-      - name: Convert icon.png to icon.ico (if icon.png exists)
+      - name: Convert icon.png to icon.ico (if requested and icon.png exists)
         shell: powershell
         run: |
-          if (Test-Path .\icon.png) {
+          if ($env:CONVERT_ICON -eq 'true' -and (Test-Path .\icon.png)) {
             Write-Host "Converting icon.png -> icon.ico using Pillow"
             @'
 from PIL import Image
@@ -43,7 +62,11 @@ Image.open("icon.png").save("icon.ico")
             .\.venv\Scripts\python.exe convert_icon.py
             Remove-Item -Path convert_icon.py
           } else {
-            Write-Host "No icon.png found; skipping conversion"
+            if ($env:CONVERT_ICON -ne 'true') {
+              Write-Host "Icon conversion skipped by input (convert_icon = $env:CONVERT_ICON)."
+            } else {
+              Write-Host "No icon.png found; skipping conversion"
+            }
           }
 
       - name: BuildApp with PyInstaller (Windows)
@@ -58,11 +81,11 @@ Image.open("icon.png").save("icon.ico")
           } else {
             $iconArg = ""
           }
-          Write-Host "Running PyInstaller with icon argument: $iconArg"
-          .\.venv\Scripts\pyinstaller.exe --windowed --onefile --name "Spectrum" $iconArg --add-data "attached_assets;attached_assets" main.py
+          Write-Host "Running PyInstaller with icon argument: $iconArg and name: $env:RELEASE_NAME"
+          .\.venv\Scripts\pyinstaller.exe --windowed --onefile --name "$env:RELEASE_NAME" $iconArg --add-data "attached_assets;attached_assets" main.py
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Spectrum-windows
+          name: ${{ env.RELEASE_NAME }}-windows
           path: dist/*.exe
